@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Arm Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        #robot-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+            min-width: 250px;
+        }
+        
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+            min-width: 200px;
+        }
+        
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .status-label {
+            font-weight: bold;
+        }
+        
+        .status-value {
+            color: #4CAF50;
+        }
+        
+        .status-value.moving {
+            color: #FF9800;
+        }
+        
+        .status-value.error {
+            color: #F44336;
+        }
+        
+        .status-value.disconnected {
+            color: #F44336;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        #pose-selector {
+            margin: 10px 0;
+        }
+        
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 3px;
+            margin-left: 10px;
+        }
+        
+        .gripper-control {
+            margin: 10px 0;
+        }
+        
+        .gripper-slider {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .gripper-value {
+            text-align: center;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        #connection-status {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            font-weight: bold;
+        }
+        
+        .connection-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .connection-indicator.connected {
+            background: #4CAF50;
+        }
+        
+        .connection-indicator.disconnected {
+            background: #F44336;
+        }
+    </style>
+</head>
+<body>
+    <div id="robot-container">
+        <div id="connection-status">
+            <span class="connection-indicator disconnected" id="connection-indicator"></span>
+            <span id="connection-text">Disconnected</span>
+        </div>
+        
+        <div id="controls">
+            <h3>🤖 Robot Controls</h3>
+            
+            <div id="pose-selector">
+                <label>Pose:</label>
+                <select id="pose-select">
+                    <option value="home">Home</option>
+                    <option value="inspection_position">Inspection Position</option>
+                    <option value="pick_position">Pick Position</option>
+                    <option value="place_position">Place Position</option>
+                    <option value="camera_position">Camera Position</option>
+                </select>
+                <button onclick="moveToPose()">Move To Pose</button>
+            </div>
+            
+            <div class="gripper-control">
+                <label>Gripper:</label>
+                <input type="range" id="gripper-slider" class="gripper-slider" min="0" max="1" step="0.1" value="0">
+                <div id="gripper-value" class="gripper-value">0.0 (Closed)</div>
+                <button onclick="setGripper()">Set Gripper</button>
+            </div>
+            
+            <div>
+                <button onclick="captureImage()">📸 Capture Image</button>
+                <button onclick="runInspection()">🔍 Run Inspection</button>
+            </div>
+            
+            <div>
+                <button onclick="resetRobot()">🔄 Reset Robot</button>
+                <button onclick="toggleAnimation()">⏸️ Toggle Animation</button>
+            </div>
+            
+            <div>
+                <button onclick="syncWithBackend()">🔄 Sync with Backend</button>
+            </div>
+        </div>
+        
+        <div id="status">
+            <h3>📊 Status</h3>
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span id="robot-status" class="status-value">Ready</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Current Pose:</span>
+                <span id="current-pose" class="status-value">home</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Gripper:</span>
+                <span id="gripper-status" class="status-value">0.0 (Closed)</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Moving:</span>
+                <span id="moving-status" class="status-value">No</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Last Action:</span>
+                <span id="last-action" class="status-value">None</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Backend:</span>
+                <span id="backend-status" class="status-value disconnected">Disconnected</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js scene setup
+        let scene, camera, renderer, robot;
+        let isAnimating = true;
+        let currentPose = 'home';
+        let gripperPosition = 0.0;
+        let isMoving = false;
+        let robotStatus = 'Ready';
+        let lastAction = 'None';
+        let websocket = null;
+        let isConnected = false;
+        
+        // Robot joint angles (in radians)
+        let jointAngles = {
+            base: 0,
+            shoulder: 0,
+            elbow: 0,
+            wrist1: 0,
+            wrist2: 0,
+            wrist3: 0
+        };
+        
+        // Predefined poses
+        const poses = {
+            home: { base: 0, shoulder: -1.57, elbow: 0, wrist1: -1.57, wrist2: 0, wrist3: 0 },
+            inspection_position: { base: 0.5, shoulder: -1.2, elbow: 0.8, wrist1: -1.0, wrist2: 0.5, wrist3: 0.3 },
+            pick_position: { base: -0.8, shoulder: -1.0, elbow: 1.2, wrist1: -0.8, wrist2: 0.2, wrist3: -0.5 },
+            place_position: { base: 0.8, shoulder: -1.0, elbow: 1.2, wrist1: -0.8, wrist2: 0.2, wrist3: 0.5 },
+            camera_position: { base: 0, shoulder: -0.8, elbow: 0.6, wrist1: -1.2, wrist2: 0.3, wrist3: 0 }
+        };
+        
+        // Initialize WebSocket connection
+        function initializeWebSocket() {
+            try {
+                const wsUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsHost = window.location.hostname;
+                websocket = new WebSocket(`${wsUrl}//${wsHost}:8000/ws/status`);
+                
+                websocket.onopen = function(event) {
+                    console.log('WebSocket connected to backend');
+                    isConnected = true;
+                    updateConnectionStatus(true);
+                };
+                
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    handleBackendUpdate(data);
+                };
+                
+                websocket.onclose = function(event) {
+                    console.log('WebSocket disconnected from backend');
+                    isConnected = false;
+                    updateConnectionStatus(false);
+                    // Try to reconnect after 5 seconds
+                    setTimeout(initializeWebSocket, 5000);
+                };
+                
+                websocket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    isConnected = false;
+                    updateConnectionStatus(false);
+                };
+            } catch (error) {
+                console.error('Failed to initialize WebSocket:', error);
+                isConnected = false;
+                updateConnectionStatus(false);
+            }
+        }
+        
+        // Handle backend status updates
+        function handleBackendUpdate(data) {
+            if (data.type === 'robot_status') {
+                // Update robot status from backend
+                robotStatus = data.status;
+                currentPose = data.current_pose || currentPose;
+                gripperPosition = data.gripper_position || gripperPosition;
+                isMoving = data.is_moving || false;
+                
+                // Update gripper slider
+                document.getElementById('gripper-slider').value = gripperPosition;
+                document.getElementById('gripper-value').textContent = `${gripperPosition.toFixed(1)} (${gripperPosition === 0 ? 'Closed' : gripperPosition === 1 ? 'Open' : 'Partially Open'})`;
+                
+                // Update robot visualization
+                updateRobotJoints();
+                updateStatus();
+            } else if (data.type === 'inspection_result') {
+                // Handle inspection results
+                lastAction = `Inspection: ${data.data.overall_result}`;
+                updateStatus();
+            }
+        }
+        
+        // Update connection status display
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-indicator');
+            const text = document.getElementById('connection-text');
+            const backendStatus = document.getElementById('backend-status');
+            
+            if (connected) {
+                indicator.className = 'connection-indicator connected';
+                text.textContent = 'Connected to Backend';
+                backendStatus.textContent = 'Connected';
+                backendStatus.className = 'status-value';
+            } else {
+                indicator.className = 'connection-indicator disconnected';
+                text.textContent = 'Disconnected from Backend';
+                backendStatus.textContent = 'Disconnected';
+                backendStatus.className = 'status-value disconnected';
+            }
+        }
+        
+        // Sync with backend
+        function syncWithBackend() {
+            if (isConnected) {
+                // Send current state to backend
+                const syncData = {
+                    type: 'sync',
+                    data: {
+                        current_pose: currentPose,
+                        gripper_position: gripperPosition,
+                        status: robotStatus
+                    }
+                };
+                websocket.send(JSON.stringify(syncData));
+                lastAction = 'Synced with backend';
+                updateStatus();
+            } else {
+                console.log('Not connected to backend');
+            }
+        }
+        
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(3, 2, 3);
+            camera.lookAt(0, 1, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('robot-container').appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // Add ground plane
+            const groundGeometry = new THREE.PlaneGeometry(10, 10);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Create robot
+            createRobot();
+            
+            // Add grid helper
+            const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Start animation loop
+            animate();
+        }
+        
+        // Create the robotic arm
+        function createRobot() {
+            robot = new THREE.Group();
+            
+            // Base
+            const baseGeometry = new THREE.CylinderGeometry(0.3, 0.4, 0.2, 8);
+            const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x2196F3 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.y = 0.1;
+            base.castShadow = true;
+            robot.add(base);
+            
+            // Base rotation joint
+            const baseJoint = new THREE.Group();
+            baseJoint.position.y = 0.2;
+            robot.add(baseJoint);
+            
+            // Shoulder link
+            const shoulderGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+            const shoulderMaterial = new THREE.MeshLambertMaterial({ color: 0xFF5722 });
+            const shoulder = new THREE.Mesh(shoulderGeometry, shoulderMaterial);
+            shoulder.position.y = 0.4;
+            shoulder.castShadow = true;
+            baseJoint.add(shoulder);
+            
+            // Shoulder joint
+            const shoulderJoint = new THREE.Group();
+            shoulderJoint.position.y = 0.8;
+            baseJoint.add(shoulderJoint);
+            
+            // Upper arm
+            const upperArmGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+            const upperArmMaterial = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
+            const upperArm = new THREE.Mesh(upperArmGeometry, upperArmMaterial);
+            upperArm.position.y = 0.3;
+            upperArm.castShadow = true;
+            shoulderJoint.add(upperArm);
+            
+            // Elbow joint
+            const elbowJoint = new THREE.Group();
+            elbowJoint.position.y = 0.6;
+            shoulderJoint.add(elbowJoint);
+            
+            // Lower arm
+            const lowerArmGeometry = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+            const lowerArmMaterial = new THREE.MeshLambertMaterial({ color: 0x9C27B0 });
+            const lowerArm = new THREE.Mesh(lowerArmGeometry, lowerArmMaterial);
+            lowerArm.position.y = 0.25;
+            lowerArm.castShadow = true;
+            elbowJoint.add(lowerArm);
+            
+            // Wrist joint
+            const wristJoint = new THREE.Group();
+            wristJoint.position.y = 0.5;
+            elbowJoint.add(wristJoint);
+            
+            // Wrist1
+            const wrist1Geometry = new THREE.BoxGeometry(0.1, 0.2, 0.1);
+            const wrist1Material = new THREE.MeshLambertMaterial({ color: 0xFF9800 });
+            const wrist1 = new THREE.Mesh(wrist1Geometry, wrist1Material);
+            wrist1.position.y = 0.1;
+            wrist1.castShadow = true;
+            wristJoint.add(wrist1);
+            
+            // Wrist2
+            const wrist2Joint = new THREE.Group();
+            wrist2Joint.position.y = 0.2;
+            wristJoint.add(wrist2Joint);
+            
+            const wrist2Geometry = new THREE.BoxGeometry(0.08, 0.15, 0.08);
+            const wrist2Material = new THREE.MeshLambertMaterial({ color: 0x607D8B });
+            const wrist2 = new THREE.Mesh(wrist2Geometry, wrist2Material);
+            wrist2.position.y = 0.075;
+            wrist2.castShadow = true;
+            wrist2Joint.add(wrist2);
+            
+            // Wrist3
+            const wrist3Joint = new THREE.Group();
+            wrist3Joint.position.y = 0.15;
+            wrist2Joint.add(wrist3Joint);
+            
+            const wrist3Geometry = new THREE.BoxGeometry(0.06, 0.1, 0.06);
+            const wrist3Material = new THREE.MeshLambertMaterial({ color: 0x795548 });
+            const wrist3 = new THREE.Mesh(wrist3Geometry, wrist3Material);
+            wrist3.position.y = 0.05;
+            wrist3.castShadow = true;
+            wrist3Joint.add(wrist3);
+            
+            // Gripper
+            const gripperGroup = new THREE.Group();
+            gripperGroup.position.y = 0.1;
+            wrist3Joint.add(gripperGroup);
+            
+            // Gripper base
+            const gripperBaseGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.05);
+            const gripperBaseMaterial = new THREE.MeshLambertMaterial({ color: 0xE91E63 });
+            const gripperBase = new THREE.Mesh(gripperBaseGeometry, gripperBaseMaterial);
+            gripperBase.castShadow = true;
+            gripperGroup.add(gripperBase);
+            
+            // Gripper fingers
+            const fingerGeometry = new THREE.BoxGeometry(0.02, 0.1, 0.02);
+            const fingerMaterial = new THREE.MeshLambertMaterial({ color: 0xE91E63 });
+            
+            const leftFinger = new THREE.Mesh(fingerGeometry, fingerMaterial);
+            leftFinger.position.set(-0.03, 0.05, 0);
+            leftFinger.castShadow = true;
+            gripperGroup.add(leftFinger);
+            
+            const rightFinger = new THREE.Mesh(fingerGeometry, fingerMaterial);
+            rightFinger.position.set(0.03, 0.05, 0);
+            rightFinger.castShadow = true;
+            gripperGroup.add(rightFinger);
+            
+            // Store references for animation
+            robot.userData = {
+                baseJoint: baseJoint,
+                shoulderJoint: shoulderJoint,
+                elbowJoint: elbowJoint,
+                wristJoint: wristJoint,
+                wrist2Joint: wrist2Joint,
+                wrist3Joint: wrist3Joint,
+                gripperGroup: gripperGroup,
+                leftFinger: leftFinger,
+                rightFinger: rightFinger
+            };
+            
+            scene.add(robot);
+        }
+        
+        // Update robot joint angles
+        function updateRobotJoints() {
+            const userData = robot.userData;
+            
+            // Apply joint angles
+            userData.baseJoint.rotation.y = jointAngles.base;
+            userData.shoulderJoint.rotation.z = jointAngles.shoulder;
+            userData.elbowJoint.rotation.z = jointAngles.elbow;
+            userData.wristJoint.rotation.z = jointAngles.wrist1;
+            userData.wrist2Joint.rotation.y = jointAngles.wrist2;
+            userData.wrist3Joint.rotation.z = jointAngles.wrist3;
+            
+            // Update gripper
+            const gripperOffset = gripperPosition * 0.04;
+            userData.leftFinger.position.x = -0.03 - gripperOffset;
+            userData.rightFinger.position.x = 0.03 + gripperOffset;
+        }
+        
+        // Animate to target pose
+        async function animateToPose(targetPose) {
+            if (isMoving) return;
+            
+            isMoving = true;
+            robotStatus = `Moving to ${targetPose}`;
+            updateStatus();
+            
+            const targetAngles = poses[targetPose];
+            const steps = 60; // 60 frames for smooth animation
+            const stepDuration = 2000 / steps; // 2 seconds total
+            
+            for (let i = 0; i <= steps; i++) {
+                const progress = i / steps;
+                
+                // Interpolate between current and target angles
+                jointAngles.base = lerp(jointAngles.base, targetAngles.base, progress);
+                jointAngles.shoulder = lerp(jointAngles.shoulder, targetAngles.shoulder, progress);
+                jointAngles.elbow = lerp(jointAngles.elbow, targetAngles.elbow, progress);
+                jointAngles.wrist1 = lerp(jointAngles.wrist1, targetAngles.wrist1, progress);
+                jointAngles.wrist2 = lerp(jointAngles.wrist2, targetAngles.wrist2, progress);
+                jointAngles.wrist3 = lerp(jointAngles.wrist3, targetAngles.wrist3, progress);
+                
+                updateRobotJoints();
+                
+                await new Promise(resolve => setTimeout(resolve, stepDuration));
+            }
+            
+            currentPose = targetPose;
+            isMoving = false;
+            robotStatus = 'Ready';
+            updateStatus();
+        }
+        
+        // Linear interpolation helper
+        function lerp(start, end, factor) {
+            return start + (end - start) * factor;
+        }
+        
+        // Update status display
+        function updateStatus() {
+            document.getElementById('robot-status').textContent = robotStatus;
+            document.getElementById('current-pose').textContent = currentPose;
+            document.getElementById('gripper-status').textContent = `${gripperPosition.toFixed(1)} (${gripperPosition === 0 ? 'Closed' : gripperPosition === 1 ? 'Open' : 'Partially Open'})`;
+            document.getElementById('moving-status').textContent = isMoving ? 'Yes' : 'No';
+            document.getElementById('last-action').textContent = lastAction;
+            
+            // Update status colors
+            const statusElement = document.getElementById('robot-status');
+            statusElement.className = 'status-value';
+            if (isMoving) {
+                statusElement.classList.add('moving');
+            } else if (robotStatus === 'Error') {
+                statusElement.classList.add('error');
+            }
+        }
+        
+        // Control functions
+        function moveToPose() {
+            const pose = document.getElementById('pose-select').value;
+            lastAction = `Move to ${pose}`;
+            animateToPose(pose);
+        }
+        
+        function setGripper() {
+            const value = parseFloat(document.getElementById('gripper-slider').value);
+            gripperPosition = value;
+            lastAction = `Set gripper to ${value.toFixed(1)}`;
+            updateRobotJoints();
+            updateStatus();
+        }
+        
+        async function captureImage() {
+            lastAction = 'Capture image';
+            robotStatus = 'Capturing image';
+            updateStatus();
+            
+            // Simulate camera flash effect
+            const originalColor = scene.background;
+            scene.background = new THREE.Color(0xffffff);
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            scene.background = originalColor;
+            robotStatus = 'Ready';
+            updateStatus();
+        }
+        
+        async function runInspection() {
+            lastAction = 'Run inspection';
+            robotStatus = 'Running inspection';
+            updateStatus();
+            
+            // Simulate inspection with robot movement
+            const originalAngles = { ...jointAngles };
+            
+            // Small movement to simulate scanning
+            for (let i = 0; i < 10; i++) {
+                jointAngles.wrist3 += 0.1;
+                updateRobotJoints();
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            for (let i = 0; i < 10; i++) {
+                jointAngles.wrist3 -= 0.1;
+                updateRobotJoints();
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Return to original position
+            jointAngles.wrist3 = originalAngles.wrist3;
+            updateRobotJoints();
+            
+            robotStatus = 'Ready';
+            updateStatus();
+        }
+        
+        function resetRobot() {
+            lastAction = 'Reset robot';
+            animateToPose('home');
+            gripperPosition = 0.0;
+            document.getElementById('gripper-slider').value = 0;
+            updateRobotJoints();
+            updateStatus();
+        }
+        
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            const button = event.target;
+            button.textContent = isAnimating ? '⏸️ Pause Animation' : '▶️ Resume Animation';
+        }
+        
+        // Handle gripper slider
+        document.getElementById('gripper-slider').addEventListener('input', function() {
+            const value = parseFloat(this.value);
+            document.getElementById('gripper-value').textContent = `${value.toFixed(1)} (${value === 0 ? 'Closed' : value === 1 ? 'Open' : 'Partially Open'})`;
+        });
+        
+        // Window resize handler
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isAnimating) {
+                // Add subtle idle animation
+                robot.rotation.y += 0.001;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize everything
+        init();
+        initializeWebSocket();
+        
+        // Set initial pose
+        animateToPose('home');
+    </script>
+</body>
+</html> 

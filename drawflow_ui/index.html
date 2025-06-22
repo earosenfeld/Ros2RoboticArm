@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROS 2 Robotic Arm Inspection - Drawflow</title>
+    
+    <!-- Drawflow CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow@0.0.59/dist/drawflow.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-robot"></i> ROS 2 Robotic Arm Inspection</h1>
+            <div class="header-controls">
+                <button id="saveBtn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Workflow
+                </button>
+                <button id="loadBtn" class="btn btn-secondary">
+                    <i class="fas fa-folder-open"></i> Load Workflow
+                </button>
+                <button id="executeBtn" class="btn btn-success">
+                    <i class="fas fa-play"></i> Execute
+                </button>
+                <button id="clearBtn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Clear
+                </button>
+                <button id="visualizerBtn" class="btn btn-info">
+                    <i class="fas fa-cube"></i> 3D Robot View
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar with node palette -->
+            <div class="sidebar">
+                <h3><i class="fas fa-puzzle-piece"></i> Robot Nodes</h3>
+                <div class="node-palette">
+                    <div class="node-item" draggable="true" data-node="MoveToPose">
+                        <i class="fas fa-arrows-alt"></i>
+                        <span>Move To Pose</span>
+                    </div>
+                    <div class="node-item" draggable="true" data-node="SetGripper">
+                        <i class="fas fa-hand-paper"></i>
+                        <span>Set Gripper</span>
+                    </div>
+                    <div class="node-item" draggable="true" data-node="CaptureImage">
+                        <i class="fas fa-camera"></i>
+                        <span>Capture Image</span>
+                    </div>
+                    <div class="node-item" draggable="true" data-node="RunInspection">
+                        <i class="fas fa-search"></i>
+                        <span>Run Inspection</span>
+                    </div>
+                </div>
+
+                <h3><i class="fas fa-info-circle"></i> Status</h3>
+                <div class="status-panel">
+                    <div class="status-item">
+                        <span class="status-label">Robot:</span>
+                        <span id="robotStatus" class="status-value">Ready</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Camera:</span>
+                        <span id="cameraStatus" class="status-value">Connected</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Execution:</span>
+                        <span id="executionStatus" class="status-value">Idle</span>
+                    </div>
+                </div>
+
+                <h3><i class="fas fa-history"></i> Recent Results</h3>
+                <div class="results-panel" id="resultsPanel">
+                    <div class="no-results">No inspection results yet</div>
+                </div>
+            </div>
+
+            <!-- Drawflow canvas -->
+            <div class="canvas-container">
+                <div id="drawflow"></div>
+            </div>
+        </div>
+
+        <!-- Modal for node configuration -->
+        <div id="nodeModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Configure Node</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button id="saveNodeBtn" class="btn btn-primary">Save</button>
+                    <button id="cancelNodeBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- File input for loading workflows -->
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+
+    <!-- Drawflow JavaScript -->
+    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow@0.0.59/dist/drawflow.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html> 
