@@ -12,6 +12,7 @@ from moveit_msgs.action import MoveGroup
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from std_msgs.msg import String, Bool
 from sensor_msgs.msg import JointState
+from moveit_msgs.srv import GetPlanningScene
 
 import numpy as np
 import tf2_ros
@@ -33,8 +34,9 @@ class RobotController(Node):
         
         # Action clients
         self.move_group_client = ActionClient(
-            MoveGroup, 
-            'move_action', 
+            self,
+            MoveGroup,
+            'move_group',
             callback_group=self.callback_group
         )
         
@@ -67,7 +69,7 @@ class RobotController(Node):
         
         # Service clients
         self.planning_scene_client = self.create_client(
-            'get_planning_scene',
+            GetPlanningScene,
             'move_group/get_planning_scene'
         )
         
