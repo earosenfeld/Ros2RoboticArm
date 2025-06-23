@@ -257,10 +257,10 @@
             try {
                 const wsUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsHost = window.location.hostname;
-                websocket = new WebSocket(`${wsUrl}//${wsHost}:8000/ws/status`);
+                websocket = new WebSocket(`${wsUrl}//${wsHost}:8001`);
                 
                 websocket.onopen = function(event) {
-                    console.log('WebSocket connected to backend');
+                    console.log('WebSocket connected to mock robot node');
                     isConnected = true;
                     updateConnectionStatus(true);
                 };
@@ -271,7 +271,7 @@
                 };
                 
                 websocket.onclose = function(event) {
-                    console.log('WebSocket disconnected from backend');
+                    console.log('WebSocket disconnected from mock robot node');
                     isConnected = false;
                     updateConnectionStatus(false);
                     // Try to reconnect after 5 seconds

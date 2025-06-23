@@ -7,12 +7,67 @@ let isExecuting = false;
 // API configuration
 const API_BASE_URL = 'http://localhost:8000';
 
+// Node type definitions with their properties
+const NODE_TYPES = {
+    MoveToPose: {
+        props: {
+            pose: {
+                type: 'select',
+                value: 'home',
+                options: ['home', 'inspection', 'grasp', 'release', 'custom']
+            },
+            description: {
+                type: 'text',
+                value: 'Move to specified pose'
+            }
+        }
+    },
+    SetGripper: {
+        props: {
+            position: {
+                type: 'select',
+                value: '1.0 (Open)',
+                options: ['0.0 (Closed)', '0.5 (Half)', '1.0 (Open)']
+            },
+            description: {
+                type: 'text',
+                value: 'Control gripper position'
+            }
+        }
+    },
+    CaptureImage: {
+        props: {
+            save: {
+                type: 'checkbox',
+                value: true
+            },
+            description: {
+                type: 'text',
+                value: 'Capture image from camera'
+            }
+        }
+    },
+    RunInspection: {
+        props: {
+            type: {
+                type: 'select',
+                value: 'standard',
+                options: ['standard', 'detailed', 'quick']
+            },
+            description: {
+                type: 'text',
+                value: 'Execute inspection routine'
+            }
+        }
+    }
+};
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeDrawflow();
     initializeEventListeners();
     initializeWebSocket();
-    loadExampleWorkflow();
+    // loadExampleWorkflow(); // Commented out to prevent errors on load
 });
 
 // Initialize Drawflow editor
@@ -24,9 +79,6 @@ function initializeDrawflow() {
     editor.force_first_input = false;
     editor.line_path = 1;
     editor.start();
-    
-    // Register custom node types
-    registerCustomNodes();
     
     // Handle node selection
     editor.on('nodeSelected', function(id) {
@@ -43,89 +95,8 @@ function initializeDrawflow() {
     editor.on('connectionCreated', function(connection) {
         console.log('Connection created:', connection);
     });
-}
-
-// Register custom node types
-function registerCustomNodes() {
-    // MoveToPose node
-    editor.registerNode('MoveToPose', {
-        name: 'Move To Pose',
-        category: 'robot',
-        html: `
-            <div class="title-box">Move To Pose</div>
-            <div class="box">
-                <div class="input-box" data-input="input"></div>
-                <div class="output-box" data-output="output"></div>
-            </div>
-        `,
-        props: {
-            pose: { type: 'select', options: ['home', 'inspection_1', 'inspection_2', 'inspection_3'] },
-            description: { type: 'text', value: 'Move to specified pose' }
-        },
-        inputs: 1,
-        outputs: 1,
-        icon: 'fas fa-arrows-alt'
-    });
     
-    // SetGripper node
-    editor.registerNode('SetGripper', {
-        name: 'Set Gripper',
-        category: 'robot',
-        html: `
-            <div class="title-box">Set Gripper</div>
-            <div class="box">
-                <div class="input-box" data-input="input"></div>
-                <div class="output-box" data-output="output"></div>
-            </div>
-        `,
-        props: {
-            position: { type: 'select', options: ['0.0 (Closed)', '1.0 (Open)'] },
-            description: { type: 'text', value: 'Control gripper position' }
-        },
-        inputs: 1,
-        outputs: 1,
-        icon: 'fas fa-hand-paper'
-    });
-    
-    // CaptureImage node
-    editor.registerNode('CaptureImage', {
-        name: 'Capture Image',
-        category: 'camera',
-        html: `
-            <div class="title-box">Capture Image</div>
-            <div class="box">
-                <div class="input-box" data-input="input"></div>
-                <div class="output-box" data-output="output"></div>
-            </div>
-        `,
-        props: {
-            save: { type: 'checkbox', value: true },
-            description: { type: 'text', value: 'Capture image from camera' }
-        },
-        inputs: 1,
-        outputs: 1,
-        icon: 'fas fa-camera'
-    });
-    
-    // RunInspection node
-    editor.registerNode('RunInspection', {
-        name: 'Run Inspection',
-        category: 'inspection',
-        html: `
-            <div class="title-box">Run Inspection</div>
-            <div class="box">
-                <div class="input-box" data-input="input"></div>
-                <div class="output-box" data-output="output"></div>
-            </div>
-        `,
-        props: {
-            type: { type: 'select', options: ['standard', 'detailed', 'quick'] },
-            description: { type: 'text', value: 'Execute inspection routine' }
-        },
-        inputs: 1,
-        outputs: 1,
-        icon: 'fas fa-search'
-    });
+    console.log('Drawflow initialized successfully');
 }
 
 // Initialize event listeners
@@ -144,9 +115,9 @@ function initializeEventListeners() {
     });
     
     // Canvas drop zone
-    const canvas = document.getElementById('drawflow');
-    canvas.addEventListener('dragover', handleDragOver);
-    canvas.addEventListener('drop', handleDrop);
+    const canvasContainer = document.querySelector('.canvas-container');
+    canvasContainer.addEventListener('dragover', handleDragOver);
+    canvasContainer.addEventListener('drop', handleDrop);
     
     // Modal events
     const modal = document.getElementById('nodeModal');
@@ -200,6 +171,7 @@ function initializeWebSocket() {
 
 // Handle drag and drop for node creation
 function handleDragStart(event) {
+    console.log('Drag started for node:', event.target.dataset.node);
     event.dataTransfer.setData('text/plain', event.target.dataset.node);
 }
 
@@ -210,17 +182,115 @@ function handleDragOver(event) {
 function handleDrop(event) {
     event.preventDefault();
     const nodeType = event.dataTransfer.getData('text/plain');
-    const rect = event.target.getBoundingClientRect();
+    console.log('Drop event triggered for node type:', nodeType);
+    
+    // Get the canvas container element
+    const canvasContainer = document.querySelector('.canvas-container');
+    const rect = canvasContainer.getBoundingClientRect();
+    
+    // Calculate position relative to the canvas container
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    
+    console.log('Drop position:', { x, y, clientX: event.clientX, clientY: event.clientY, rect });
     
     createNode(nodeType, x, y);
 }
 
 // Create a new node
 function createNode(nodeType, x, y) {
-    const nodeId = editor.addNode(nodeType, 0, x, y, {}, 'robot');
-    console.log(`Created ${nodeType} node with ID: ${nodeId}`);
+    try {
+        let htmlContent = '';
+        let nodeData = {};
+        let nodeProps = {};
+        
+        // Get node type definition
+        const nodeTypeDef = NODE_TYPES[nodeType];
+        if (nodeTypeDef) {
+            nodeProps = nodeTypeDef.props;
+            // Initialize nodeData with default values from props
+            for (const [key, prop] of Object.entries(nodeProps)) {
+                nodeData[key] = prop.value;
+            }
+        }
+        
+        switch (nodeType) {
+            case 'MoveToPose':
+                htmlContent = `
+                    <div class="title-box">Move To Pose</div>
+                    <div class="box">
+                        <div class="input-box" data-input="input"></div>
+                        <div class="output-box" data-output="output"></div>
+                    </div>
+                `;
+                break;
+            case 'SetGripper':
+                htmlContent = `
+                    <div class="title-box">Set Gripper</div>
+                    <div class="box">
+                        <div class="input-box" data-input="input"></div>
+                        <div class="output-box" data-output="output"></div>
+                    </div>
+                `;
+                break;
+            case 'CaptureImage':
+                htmlContent = `
+                    <div class="title-box">Capture Image</div>
+                    <div class="box">
+                        <div class="input-box" data-input="input"></div>
+                        <div class="output-box" data-output="output"></div>
+                    </div>
+                `;
+                break;
+            case 'RunInspection':
+                htmlContent = `
+                    <div class="title-box">Run Inspection</div>
+                    <div class="box">
+                        <div class="input-box" data-input="input"></div>
+                        <div class="output-box" data-output="output"></div>
+                    </div>
+                `;
+                break;
+            default:
+                htmlContent = `
+                    <div class="title-box">${nodeType}</div>
+                    <div class="box">
+                        <div class="input-box" data-input="input"></div>
+                        <div class="output-box" data-output="output"></div>
+                    </div>
+                `;
+                nodeData = { description: `Default ${nodeType} description` };
+        }
+
+        // For Drawflow 0.0.59, the correct signature is:
+        // addNode(name, inputs, outputs, pos_x, pos_y, class, data, html)
+        const nodeId = editor.addNode(
+            nodeType, // name
+            1,        // inputs
+            1,        // outputs
+            x,        // pos_x
+            y,        // pos_y
+            'robot',  // class
+            nodeData, // data
+            htmlContent // html
+        );
+        
+        // Set the props property on the node after creation
+        if (nodeId && nodeProps) {
+            const node = editor.getNodeFromId(nodeId);
+            if (node) {
+                node.props = nodeProps;
+            }
+        }
+        
+        console.log(`Created ${nodeType} node with ID: ${nodeId}`);
+        return nodeId;
+    } catch (error) {
+        console.error('Error creating node:', error);
+        console.error('Node creation details:', { nodeType, x, y });
+        showToast('Failed to create node', 'error');
+        return null;
+    }
 }
 
 // Show node configuration modal
@@ -236,8 +306,27 @@ function showNodeConfiguration(nodeId) {
     
     // Generate form based on node properties
     let formHTML = '';
-    for (const [key, prop] of Object.entries(node.props)) {
-        formHTML += generateFormField(key, prop, node.data[key]);
+    
+    // Safety check: if node.props is undefined, try to get it from NODE_TYPES
+    let nodeProps = node.props;
+    if (!nodeProps && NODE_TYPES[node.name]) {
+        nodeProps = NODE_TYPES[node.name].props;
+        // Also set it on the node for future use
+        node.props = nodeProps;
+    }
+    
+    if (nodeProps) {
+        for (const [key, prop] of Object.entries(nodeProps)) {
+            formHTML += generateFormField(key, prop, node.data[key]);
+        }
+    } else {
+        // Fallback: show basic configuration for unknown node types
+        formHTML = `
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <input type="text" id="description" value="${node.data.description || ''}" />
+            </div>
+        `;
     }
     
     modalBody.innerHTML = formHTML;
@@ -289,15 +378,31 @@ function saveNodeConfiguration() {
     const node = editor.getNodeFromId(selectedNode);
     if (!node) return;
     
+    // Safety check: if node.props is undefined, try to get it from NODE_TYPES
+    let nodeProps = node.props;
+    if (!nodeProps && NODE_TYPES[node.name]) {
+        nodeProps = NODE_TYPES[node.name].props;
+        // Also set it on the node for future use
+        node.props = nodeProps;
+    }
+    
     // Collect form values
-    for (const [key, prop] of Object.entries(node.props)) {
-        const element = document.getElementById(key);
-        if (element) {
-            if (prop.type === 'checkbox') {
-                node.data[key] = element.checked;
-            } else {
-                node.data[key] = element.value;
+    if (nodeProps) {
+        for (const [key, prop] of Object.entries(nodeProps)) {
+            const element = document.getElementById(key);
+            if (element) {
+                if (prop.type === 'checkbox') {
+                    node.data[key] = element.checked;
+                } else {
+                    node.data[key] = element.value;
+                }
             }
+        }
+    } else {
+        // Fallback: save basic description for unknown node types
+        const descriptionElement = document.getElementById('description');
+        if (descriptionElement) {
+            node.data.description = descriptionElement.value;
         }
     }
     
@@ -551,7 +656,9 @@ function loadExampleWorkflow() {
                         inputs: {},
                         outputs: { output: { connections: [{ node: "2", input: "input" }] } },
                         pos_x: 100,
-                        pos_y: 100
+                        pos_y: 100,
+                        width: 150,
+                        height: 80
                     },
                     "2": {
                         id: 2,
@@ -563,7 +670,9 @@ function loadExampleWorkflow() {
                         inputs: { input: { connections: [{ node: "1", output: "output" }] } },
                         outputs: { output: { connections: [{ node: "3", input: "input" }] } },
                         pos_x: 300,
-                        pos_y: 100
+                        pos_y: 100,
+                        width: 150,
+                        height: 80
                     },
                     "3": {
                         id: 3,
@@ -575,7 +684,9 @@ function loadExampleWorkflow() {
                         inputs: { input: { connections: [{ node: "2", output: "output" }] } },
                         outputs: { output: { connections: [{ node: "4", input: "input" }] } },
                         pos_x: 500,
-                        pos_y: 100
+                        pos_y: 100,
+                        width: 150,
+                        height: 80
                     },
                     "4": {
                         id: 4,
@@ -587,15 +698,22 @@ function loadExampleWorkflow() {
                         inputs: { input: { connections: [{ node: "3", output: "output" }] } },
                         outputs: {},
                         pos_x: 700,
-                        pos_y: 100
+                        pos_y: 100,
+                        width: 150,
+                        height: 80
                     }
                 }
             }
         }
     };
     
-    editor.import(exampleData);
-    showToast('Example workflow loaded', 'info');
+    try {
+        editor.import(exampleData);
+        showToast('Example workflow loaded', 'info');
+    } catch (error) {
+        console.error('Error loading example workflow:', error);
+        showToast('Failed to load example workflow', 'error');
+    }
 }
 
 // Open 3D robot visualizer
