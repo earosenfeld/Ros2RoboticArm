@@ -257,10 +257,10 @@
             try {
                 const wsUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsHost = window.location.hostname;
-                websocket = new WebSocket(`${wsUrl}//${wsHost}:8001`);
+                websocket = new WebSocket(`${wsUrl}//${wsHost}:8000/ws/status`);
                 
                 websocket.onopen = function(event) {
-                    console.log('WebSocket connected to mock robot node');
+                    console.log('WebSocket connected to backend');
                     isConnected = true;
                     updateConnectionStatus(true);
                 };
@@ -271,7 +271,7 @@
                 };
                 
                 websocket.onclose = function(event) {
-                    console.log('WebSocket disconnected from mock robot node');
+                    console.log('WebSocket disconnected from backend');
                     isConnected = false;
                     updateConnectionStatus(false);
                     // Try to reconnect after 5 seconds
@@ -292,20 +292,40 @@
         
         // Handle backend status updates
         function handleBackendUpdate(data) {
+            console.log('Received backend update:', data);
+            
             if (data.type === 'robot_status') {
                 // Update robot status from backend
                 robotStatus = data.status;
-                currentPose = data.current_pose || currentPose;
-                gripperPosition = data.gripper_position || gripperPosition;
-                isMoving = data.is_moving || false;
+                const newPose = data.current_pose || currentPose;
+                const newGripperPosition = data.gripper_position || gripperPosition;
+                const newIsMoving = data.is_moving || false;
                 
-                // Update gripper slider
-                document.getElementById('gripper-slider').value = gripperPosition;
-                document.getElementById('gripper-value').textContent = `${gripperPosition.toFixed(1)} (${gripperPosition === 0 ? 'Closed' : gripperPosition === 1 ? 'Open' : 'Partially Open'})`;
+                // Update gripper position
+                if (newGripperPosition !== gripperPosition) {
+                    gripperPosition = newGripperPosition;
+                    // Update gripper slider
+                    document.getElementById('gripper-slider').value = gripperPosition;
+                    document.getElementById('gripper-value').textContent = `${gripperPosition.toFixed(1)} (${gripperPosition === 0 ? 'Closed' : gripperPosition === 1 ? 'Open' : 'Partially Open'})`;
+                    // Update robot visualization
+                    updateRobotJoints();
+                }
                 
-                // Update robot visualization
-                updateRobotJoints();
+                // Update pose and animate if changed
+                if (newPose !== currentPose && poses[newPose]) {
+                    console.log(`Animating robot from ${currentPose} to ${newPose}`);
+                    animateToPose(newPose);
+                } else if (newPose !== currentPose) {
+                    // If pose is not in our predefined poses, just update the current pose
+                    currentPose = newPose;
+                }
+                
+                // Update moving status
+                isMoving = newIsMoving;
+                
+                // Update status display
                 updateStatus();
+                
             } else if (data.type === 'inspection_result') {
                 // Handle inspection results
                 lastAction = `Inspection: ${data.data.overall_result}`;

@@ -326,18 +326,69 @@ body {
 
 .drawflow .drawflow-node .box {
     padding: 0.75rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
 }
 
 .drawflow .drawflow-node .input-box {
     background: #e9ecef !important;
     border-radius: 4px !important;
     margin: 0.25rem 0 !important;
+    width: 20px !important;
+    height: 20px !important;
+    display: inline-block !important;
+    cursor: crosshair !important;
+    position: relative !important;
 }
 
 .drawflow .drawflow-node .output-box {
     background: #667eea !important;
     border-radius: 4px !important;
     margin: 0.25rem 0 !important;
+    width: 20px !important;
+    height: 20px !important;
+    display: inline-block !important;
+    cursor: crosshair !important;
+    position: relative !important;
+}
+
+/* Drawflow connection point styles */
+.drawflow .drawflow-node .input-box::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 12px !important;
+    height: 12px !important;
+    background: #6c757d !important;
+    border-radius: 50% !important;
+    border: 2px solid white !important;
+}
+
+.drawflow .drawflow-node .output-box::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 12px !important;
+    height: 12px !important;
+    background: #667eea !important;
+    border-radius: 50% !important;
+    border: 2px solid white !important;
+}
+
+/* Hover effects for connection points */
+.drawflow .drawflow-node .input-box:hover::before {
+    background: #495057 !important;
+    transform: translate(-50%, -50%) scale(1.2) !important;
+}
+
+.drawflow .drawflow-node .output-box:hover::before {
+    background: #5a67d8 !important;
+    transform: translate(-50%, -50%) scale(1.2) !important;
 }
 
 /* Modal */

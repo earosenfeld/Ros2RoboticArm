@@ -82,6 +82,7 @@ function initializeDrawflow() {
     
     // Handle node selection
     editor.on('nodeSelected', function(id) {
+        console.log('Node selected:', id);
         selectedNode = id;
         showNodeConfiguration(id);
     });
@@ -89,6 +90,9 @@ function initializeDrawflow() {
     // Handle node creation
     editor.on('nodeCreated', function(id) {
         console.log('Node created:', id);
+        // Log the node details
+        const node = editor.getNodeFromId(id);
+        console.log('Node details:', node);
     });
     
     // Handle connection creation
@@ -96,17 +100,42 @@ function initializeDrawflow() {
         console.log('Connection created:', connection);
     });
     
+    // Handle connection error
+    editor.on('connectionError', function(error) {
+        console.error('Connection error:', error);
+    });
+    
     console.log('Drawflow initialized successfully');
+    console.log('Editor object:', editor);
 }
 
 // Initialize event listeners
 function initializeEventListeners() {
     // Header buttons
+    document.getElementById('testBtn').addEventListener('click', createTestWorkflow);
     document.getElementById('saveBtn').addEventListener('click', saveWorkflow);
     document.getElementById('loadBtn').addEventListener('click', loadWorkflow);
     document.getElementById('executeBtn').addEventListener('click', executeWorkflow);
     document.getElementById('clearBtn').addEventListener('click', clearWorkflow);
     document.getElementById('visualizerBtn').addEventListener('click', openRobotVisualizer);
+    
+    // Add test connections button if it exists
+    const testConnectionsBtn = document.getElementById('testConnectionsBtn');
+    if (testConnectionsBtn) {
+        testConnectionsBtn.addEventListener('click', testConnections);
+    }
+    
+    // Add inspect nodes button if it exists
+    const inspectNodesBtn = document.getElementById('inspectNodesBtn');
+    if (inspectNodesBtn) {
+        inspectNodesBtn.addEventListener('click', inspectNodes);
+    }
+    
+    // Add basic test button if it exists
+    const basicTestBtn = document.getElementById('basicTestBtn');
+    if (basicTestBtn) {
+        basicTestBtn.addEventListener('click', createBasicTest);
+    }
     
     // Node palette drag and drop
     const nodeItems = document.querySelectorAll('.node-item');
@@ -125,15 +154,29 @@ function initializeEventListeners() {
     const saveNodeBtn = document.getElementById('saveNodeBtn');
     const cancelNodeBtn = document.getElementById('cancelNodeBtn');
     
-    closeBtn.addEventListener('click', closeModal);
-    saveNodeBtn.addEventListener('click', saveNodeConfiguration);
-    cancelNodeBtn.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', function(event) {
+        event.stopPropagation(); // Prevent event from bubbling up to node
+        closeModal();
+    });
+    saveNodeBtn.addEventListener('click', function(event) {
+        event.stopPropagation(); // Prevent event from bubbling up to node
+        saveNodeConfiguration();
+    });
+    cancelNodeBtn.addEventListener('click', function(event) {
+        event.stopPropagation(); // Prevent event from bubbling up to node
+        closeModal();
+    });
     
     // Close modal when clicking outside
     window.addEventListener('click', function(event) {
         if (event.target === modal) {
             closeModal();
         }
+    });
+    
+    // Prevent clicks inside modal from bubbling up to node
+    modal.addEventListener('click', function(event) {
+        event.stopPropagation();
     });
 }
 
@@ -214,49 +257,65 @@ function createNode(nodeType, x, y) {
             }
         }
         
+        // Check if this is the first node (no other nodes exist)
+        const allNodes = editor.getNodesFromName();
+        const isFirstNode = Object.keys(allNodes).length === 0;
+        
+        console.log(`Creating ${nodeType} node. Is first node: ${isFirstNode}`);
+        
         switch (nodeType) {
             case 'MoveToPose':
                 htmlContent = `
-                    <div class="title-box">Move To Pose</div>
-                    <div class="box">
-                        <div class="input-box" data-input="input"></div>
-                        <div class="output-box" data-output="output"></div>
+                    <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 8px;">
+                        <div class="title-box" style="background: #667eea; color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px;">Move To Pose</div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            ${!isFirstNode ? '<div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>' : '<div style="width: 20px;"></div>'}
+                            <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>
+                        </div>
                     </div>
                 `;
                 break;
             case 'SetGripper':
                 htmlContent = `
-                    <div class="title-box">Set Gripper</div>
-                    <div class="box">
-                        <div class="input-box" data-input="input"></div>
-                        <div class="output-box" data-output="output"></div>
+                    <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 8px;">
+                        <div class="title-box" style="background: #667eea; color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px;">Set Gripper</div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            ${!isFirstNode ? '<div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>' : '<div style="width: 20px;"></div>'}
+                            <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>
+                        </div>
                     </div>
                 `;
                 break;
             case 'CaptureImage':
                 htmlContent = `
-                    <div class="title-box">Capture Image</div>
-                    <div class="box">
-                        <div class="input-box" data-input="input"></div>
-                        <div class="output-box" data-output="output"></div>
+                    <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 8px;">
+                        <div class="title-box" style="background: #667eea; color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px;">Capture Image</div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            ${!isFirstNode ? '<div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>' : '<div style="width: 20px;"></div>'}
+                            <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>
+                        </div>
                     </div>
                 `;
                 break;
             case 'RunInspection':
                 htmlContent = `
-                    <div class="title-box">Run Inspection</div>
-                    <div class="box">
-                        <div class="input-box" data-input="input"></div>
-                        <div class="output-box" data-output="output"></div>
+                    <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 8px;">
+                        <div class="title-box" style="background: #667eea; color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px;">Run Inspection</div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            ${!isFirstNode ? '<div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>' : '<div style="width: 20px;"></div>'}
+                            <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>
+                        </div>
                     </div>
                 `;
                 break;
             default:
                 htmlContent = `
-                    <div class="title-box">${nodeType}</div>
-                    <div class="box">
-                        <div class="input-box" data-input="input"></div>
-                        <div class="output-box" data-output="output"></div>
+                    <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 8px;">
+                        <div class="title-box" style="background: #667eea; color: white; padding: 5px; border-radius: 4px; margin-bottom: 10px;">${nodeType}</div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            ${!isFirstNode ? '<div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>' : '<div style="width: 20px;"></div>'}
+                            <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair; border: 2px solid white;"></div>
+                        </div>
                     </div>
                 `;
                 nodeData = { description: `Default ${nodeType} description` };
@@ -266,7 +325,7 @@ function createNode(nodeType, x, y) {
         // addNode(name, inputs, outputs, pos_x, pos_y, class, data, html)
         const nodeId = editor.addNode(
             nodeType, // name
-            1,        // inputs
+            isFirstNode ? 0 : 1, // inputs: 0 for first node, 1 for others
             1,        // outputs
             x,        // pos_x
             y,        // pos_y
@@ -283,7 +342,7 @@ function createNode(nodeType, x, y) {
             }
         }
         
-        console.log(`Created ${nodeType} node with ID: ${nodeId}`);
+        console.log(`Created ${nodeType} node with ID: ${nodeId} (inputs: ${isFirstNode ? 0 : 1})`);
         return nodeId;
     } catch (error) {
         console.error('Error creating node:', error);
@@ -291,6 +350,103 @@ function createNode(nodeType, x, y) {
         showToast('Failed to create node', 'error');
         return null;
     }
+}
+
+// Test function to create a simple workflow
+function createTestWorkflow() {
+    console.log('Creating test workflow...');
+    
+    // Clear existing workflow
+    editor.clear();
+    
+    // Create nodes with proper spacing
+    const node1 = createNode('MoveToPose', 100, 100);
+    const node2 = createNode('SetGripper', 350, 100);
+    const node3 = createNode('CaptureImage', 600, 100);
+    
+    console.log('Created nodes:', { node1, node2, node3 });
+    
+    // Wait a bit for nodes to be fully created
+    setTimeout(() => {
+        // Connect nodes
+        if (node1 && node2) {
+            try {
+                editor.addConnection(node1, 'output', node2, 'input');
+                console.log('Connected node1 to node2');
+            } catch (error) {
+                console.error('Failed to connect node1 to node2:', error);
+            }
+        }
+        
+        if (node2 && node3) {
+            try {
+                editor.addConnection(node2, 'output', node3, 'input');
+                console.log('Connected node2 to node3');
+            } catch (error) {
+                console.error('Failed to connect node2 to node3:', error);
+            }
+        }
+        
+        // Export and test
+        const workflowData = editor.export();
+        console.log('Test workflow data:', workflowData);
+        
+        const commands = convertWorkflowToCommands(workflowData);
+        console.log('Test workflow commands:', commands);
+        
+        showToast('Test workflow created! Check console for details.', 'success');
+    }, 500);
+}
+
+// Debug function to test connections manually
+function testConnections() {
+    console.log('Testing connections...');
+    
+    // Get all nodes
+    const nodes = editor.getNodesFromName();
+    console.log('All nodes:', nodes);
+    
+    // Try to get the first two nodes and connect them
+    const nodeIds = Object.keys(nodes);
+    if (nodeIds.length >= 2) {
+        const node1Id = nodeIds[0];
+        const node2Id = nodeIds[1];
+        
+        console.log(`Attempting to connect ${node1Id} to ${node2Id}`);
+        
+        try {
+            editor.addConnection(node1Id, 'output', node2Id, 'input');
+            console.log('Connection successful!');
+            showToast('Connection test successful!', 'success');
+        } catch (error) {
+            console.error('Connection failed:', error);
+            showToast('Connection test failed: ' + error.message, 'error');
+        }
+    } else {
+        console.log('Need at least 2 nodes to test connections');
+        showToast('Need at least 2 nodes to test connections', 'info');
+    }
+}
+
+// Debug function to inspect node structure
+function inspectNodes() {
+    console.log('Inspecting nodes...');
+    
+    const nodes = editor.getNodesFromName();
+    console.log('All nodes:', nodes);
+    
+    for (const [nodeId, node] of Object.entries(nodes)) {
+        console.log(`Node ${nodeId}:`, {
+            id: node.id,
+            name: node.name,
+            inputs: node.inputs,
+            outputs: node.outputs,
+            html: node.html,
+            data: node.data
+        });
+    }
+    
+    showToast('Node inspection complete - check console', 'info');
 }
 
 // Show node configuration modal
@@ -324,7 +480,7 @@ function showNodeConfiguration(nodeId) {
         formHTML = `
             <div class="form-group">
                 <label for="description">Description:</label>
-                <input type="text" id="description" value="${node.data.description || ''}" />
+                <input type="text" id="description" value="${node.data.description || ''}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" />
             </div>
         `;
     }
@@ -342,7 +498,7 @@ function generateFormField(key, prop, value) {
             return `
                 <div class="form-group">
                     <label for="${key}">${label}:</label>
-                    <input type="text" id="${key}" value="${value || prop.value || ''}" />
+                    <input type="text" id="${key}" value="${value || prop.value || ''}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" />
                 </div>
             `;
         case 'select':
@@ -353,21 +509,26 @@ function generateFormField(key, prop, value) {
             return `
                 <div class="form-group">
                     <label for="${key}">${label}:</label>
-                    <select id="${key}">${options}</select>
+                    <select id="${key}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">${options}</select>
                 </div>
             `;
         case 'checkbox':
-            const checked = value !== undefined ? value : prop.value;
+            const checked = value ? 'checked' : '';
             return `
                 <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="${key}" ${checked ? 'checked' : ''} />
-                        <label for="${key}">${label}</label>
-                    </div>
+                    <label for="${key}">
+                        <input type="checkbox" id="${key}" ${checked} onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" />
+                        ${label}
+                    </label>
                 </div>
             `;
         default:
-            return '';
+            return `
+                <div class="form-group">
+                    <label for="${key}">${label}:</label>
+                    <input type="text" id="${key}" value="${value || prop.value || ''}" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" />
+                </div>
+            `;
     }
 }
 
@@ -460,10 +621,7 @@ document.getElementById('fileInput').addEventListener('change', function(event) 
 
 // Execute workflow
 async function executeWorkflow() {
-    if (isExecuting) {
-        showToast('Workflow already executing', 'error');
-        return;
-    }
+    if (isExecuting) return;
     
     try {
         isExecuting = true;
@@ -471,9 +629,11 @@ async function executeWorkflow() {
         
         // Export workflow data
         const workflowData = editor.export();
+        console.log('Exported workflow data:', workflowData);
         
         // Convert to ROS 2 commands
         const commands = convertWorkflowToCommands(workflowData);
+        console.log('Converted commands:', commands);
         
         // Send to API
         const response = await fetch(`${API_BASE_URL}/api/execute-routine`, {
@@ -505,52 +665,137 @@ async function executeWorkflow() {
 
 // Convert workflow to ROS 2 commands
 function convertWorkflowToCommands(workflowData) {
+    console.log('Converting workflow data:', workflowData);
     const commands = [];
-    const nodes = workflowData.drawflow.Home.data;
     
-    // Find start nodes (nodes with no inputs or empty inputs)
-    const startNodes = Object.values(nodes).filter(node => 
-        !node.inputs || Object.keys(node.inputs).length === 0
-    );
+    // Check if workflowData has the expected structure
+    if (!workflowData || !workflowData.drawflow) {
+        console.warn('No drawflow property in workflow data');
+        return commands;
+    }
     
-    // Process nodes in order (simplified - in real implementation, you'd need proper topological sorting)
-    for (const node of startNodes) {
+    const nodes = workflowData.drawflow.Home?.data;
+    console.log('Nodes from workflow:', nodes);
+    
+    if (!nodes || Object.keys(nodes).length === 0) {
+        console.warn('No nodes found in workflow');
+        return commands;
+    }
+    
+    // Find start nodes (nodes with no incoming connections)
+    const startNodes = Object.values(nodes).filter(node => {
+        // Check if this node has any incoming connections
+        const hasIncomingConnections = Object.values(nodes).some(otherNode => {
+            if (otherNode.outputs) {
+                for (const outputKey in otherNode.outputs) {
+                    const output = otherNode.outputs[outputKey];
+                    if (output.connections) {
+                        for (const connection of output.connections) {
+                            if (connection.node === node.id.toString()) {
+                                return true; // This node has an incoming connection
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        });
+        
+        const isStartNode = !hasIncomingConnections;
+        console.log(`Node ${node.id} (${node.name}): hasIncomingConnections = ${hasIncomingConnections}, isStartNode = ${isStartNode}`);
+        return isStartNode;
+    });
+    
+    console.log('Start nodes found:', startNodes);
+    
+    if (startNodes.length === 0) {
+        console.warn('No start nodes found in workflow');
+        return commands;
+    }
+    
+    // Process nodes in topological order
+    const processed = new Set();
+    const queue = [...startNodes];
+    
+    while (queue.length > 0) {
+        const node = queue.shift();
+        const nodeId = node.id.toString();
+        
+        if (processed.has(nodeId)) {
+            continue;
+        }
+        
+        // Convert node to command
         const command = convertNodeToCommand(node);
         if (command) {
             commands.push(command);
         }
+        
+        processed.add(nodeId);
+        
+        // Add connected output nodes to queue
+        if (node.outputs) {
+            for (const outputKey in node.outputs) {
+                const output = node.outputs[outputKey];
+                if (output.connections) {
+                    for (const connection of output.connections) {
+                        const nextNodeId = connection.node;
+                        const nextNode = nodes[nextNodeId];
+                        if (nextNode && !processed.has(nextNodeId)) {
+                            // Check if all inputs of this node are processed
+                            const allInputsProcessed = !nextNode.inputs || 
+                                Object.values(nextNode.inputs).every(input => 
+                                    !input.connections || 
+                                    input.connections.every(conn => processed.has(conn.node))
+                                );
+                            
+                            if (allInputsProcessed) {
+                                queue.push(nextNode);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
+    console.log(`Converted ${commands.length} commands from workflow`);
     return commands;
 }
 
 // Convert a single node to a command
 function convertNodeToCommand(node) {
+    console.log('Converting node:', node);
+    
     const baseCommand = {
         type: node.name,
-        description: node.data.description || ''
+        description: node.data?.description || ''
     };
     
     switch (node.name) {
         case 'MoveToPose':
             return {
                 ...baseCommand,
-                pose: node.data.pose || 'home'
+                pose: node.data?.pose || 'home'
             };
         case 'SetGripper':
+            const positionStr = node.data?.position || '0.0 (Closed)';
+            // Extract numeric value from position string
+            const positionMatch = positionStr.match(/(\d+\.?\d*)/);
+            const position = positionMatch ? parseFloat(positionMatch[1]) : 0.0;
             return {
                 ...baseCommand,
-                position: parseFloat(node.data.position) || 0.0
+                position: position
             };
         case 'CaptureImage':
             return {
                 ...baseCommand,
-                save: node.data.save !== undefined ? node.data.save : true
+                save: node.data?.save !== undefined ? node.data.save : true
             };
         case 'RunInspection':
             return {
                 ...baseCommand,
-                type: node.data.type || 'standard'
+                type: node.data?.type || 'standard'
             };
         default:
             console.warn(`Unknown node type: ${node.name}`);
@@ -726,5 +971,42 @@ function openRobotVisualizer() {
         showToast('3D Robot Visualizer opened in new window', 'info');
     } else {
         showToast('Failed to open 3D Robot Visualizer. Please allow popups.', 'error');
+    }
+}
+
+// Simple test function to create basic nodes
+function createBasicTest() {
+    console.log('Creating basic test...');
+    
+    // Clear existing workflow
+    editor.clear();
+    
+    // Create a simple test node with minimal HTML
+    const testHtml = `
+        <div style="padding: 10px; background: white; border: 1px solid #ccc;">
+            <div>Test Node</div>
+            <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                <div class="input-box" data-input="input" style="width: 20px; height: 20px; background: #e9ecef; border-radius: 50%; cursor: crosshair;"></div>
+                <div class="output-box" data-output="output" style="width: 20px; height: 20px; background: #667eea; border-radius: 50%; cursor: crosshair;"></div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const node1 = editor.addNode('TestNode', 1, 1, 100, 100, 'test', { test: 'data' }, testHtml);
+        const node2 = editor.addNode('TestNode', 1, 1, 300, 100, 'test', { test: 'data' }, testHtml);
+        
+        console.log('Created test nodes:', { node1, node2 });
+        
+        // Try to connect them
+        if (node1 && node2) {
+            editor.addConnection(node1, 'output', node2, 'input');
+            console.log('Test connection successful!');
+            showToast('Basic test successful!', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Basic test failed:', error);
+        showToast('Basic test failed: ' + error.message, 'error');
     }
 } 
