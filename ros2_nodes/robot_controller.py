@@ -19,6 +19,10 @@ import tf2_ros
 import tf2_geometry_msgs
 from tf2_geometry_msgs import do_transform_pose
 
+# Pure-Python kinematics (no ROS deps) — safe to import at module top so the FK
+# math is available even when this node is imported outside a ROS runtime.
+from robot_arm import RobotKinematics, load_default_chain
+
 
 class RobotController(Node):
     """
@@ -81,17 +85,97 @@ class RobotController(Node):
         self.current_joint_state = None
         self.is_moving = False
         
-        # Joint limits (example for a 6-DOF arm)
+        # Forward/inverse kinematics over the 6-DOF arm chain (gripper locked).
+        self.kinematics = RobotKinematics(load_default_chain())
+        self.arm_joint_names = self.kinematics.chain.actuated_joint_names
+
+        # Joint limits sourced from the URDF via the kinematic chain.
+        lower, upper = self.kinematics.chain.joint_limits()
         self.joint_limits = {
-            'joint1': (-3.14, 3.14),
-            'joint2': (-3.14, 3.14),
-            'joint3': (-3.14, 3.14),
-            'joint4': (-3.14, 3.14),
-            'joint5': (-3.14, 3.14),
-            'joint6': (-3.14, 3.14)
+            name: (float(lo), float(hi))
+            for name, lo, hi in zip(self.arm_joint_names, lower, upper)
         }
-        
+
         self.get_logger().info('Robot Controller initialized')
+
+    # -- kinematics helpers ------------------------------------------------
+
+    def _joint_vector_from_state(self, joint_state) -> np.ndarray:
+        """Extract the actuated-joint vector (chain order) from a JointState msg.
+
+        Missing joints default to 0.0 so partial states still yield a pose.
+        """
+        name_to_pos = dict(zip(joint_state.name, joint_state.position))
+        return np.array(
+            [name_to_pos.get(n, 0.0) for n in self.arm_joint_names], dtype=float
+        )
+
+    @staticmethod
+    def _matrix_to_pose(T: np.ndarray) -> Pose:
+        """Convert a 4x4 homogeneous transform to a geometry_msgs/Pose."""
+        pose = Pose()
+        pose.position.x = float(T[0, 3])
+        pose.position.y = float(T[1, 3])
+        pose.position.z = float(T[2, 3])
+        # Rotation matrix -> quaternion (w, x, y, z).
+        R = T[:3, :3]
+        trace = np.trace(R)
+        if trace > 0:
+            s = 0.5 / np.sqrt(trace + 1.0)
+            w = 0.25 / s
+            x = (R[2, 1] - R[1, 2]) * s
+            y = (R[0, 2] - R[2, 0]) * s
+            z = (R[1, 0] - R[0, 1]) * s
+        else:
+            i = int(np.argmax(np.diag(R)))
+            if i == 0:
+                s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+                w = (R[2, 1] - R[1, 2]) / s
+                x = 0.25 * s
+                y = (R[0, 1] + R[1, 0]) / s
+                z = (R[0, 2] + R[2, 0]) / s
+            elif i == 1:
+                s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+                w = (R[0, 2] - R[2, 0]) / s
+                x = (R[0, 1] + R[1, 0]) / s
+                y = 0.25 * s
+                z = (R[1, 2] + R[2, 1]) / s
+            else:
+                s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+                w = (R[1, 0] - R[0, 1]) / s
+                x = (R[0, 2] + R[2, 0]) / s
+                y = (R[1, 2] + R[2, 1]) / s
+                z = 0.25 * s
+        pose.orientation.w = float(w)
+        pose.orientation.x = float(x)
+        pose.orientation.y = float(y)
+        pose.orientation.z = float(z)
+        return pose
+
+    @staticmethod
+    def _pose_to_matrix(pose: Pose) -> np.ndarray:
+        """Convert a geometry_msgs/Pose to a 4x4 homogeneous transform."""
+        x = pose.orientation.x
+        y = pose.orientation.y
+        z = pose.orientation.z
+        w = pose.orientation.w
+        n = np.sqrt(x * x + y * y + z * z + w * w)
+        if n > 0:
+            x, y, z, w = x / n, y / n, z / n, w / n
+        R = np.array(
+            [
+                [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+            ],
+            dtype=float,
+        )
+        T = np.eye(4)
+        T[:3, :3] = R
+        T[0, 3] = pose.position.x
+        T[1, 3] = pose.position.y
+        T[2, 3] = pose.position.z
+        return T
         
     def joint_state_callback(self, msg):
         """Callback for joint state updates."""
@@ -236,24 +320,58 @@ class RobotController(Node):
             return False
     
     def get_current_pose(self) -> Pose:
-        """Get the current end-effector pose."""
+        """Get the current end-effector pose via forward kinematics.
+
+        Reads the latest joint state, maps it to the actuated-joint vector, and
+        runs ``forward_kinematics`` on the 6-DOF arm chain (the gripper prismatic
+        is locked at zero). Returns a base-frame ``geometry_msgs/Pose``.
+        """
         try:
             if self.current_joint_state is None:
                 return None
-            
-            # This would typically involve forward kinematics
-            # For now, return a default pose
-            pose = Pose()
-            pose.position.x = 0.5
-            pose.position.y = 0.0
-            pose.position.z = 0.5
-            pose.orientation.w = 1.0
-            
-            return pose
-            
+
+            q = self._joint_vector_from_state(self.current_joint_state)
+            T = self.kinematics.forward_kinematics(q)
+            return self._matrix_to_pose(T)
+
         except Exception as e:
             self.get_logger().error(f'Error getting current pose: {str(e)}')
             return None
+
+    def move_to_cartesian(self, target_pose: Pose, planning_time: float = 5.0) -> bool:
+        """Solve IK for ``target_pose`` and move the joints to the solution.
+
+        Runs damped-least-squares inverse kinematics (warm-started from the
+        current joint state) to find a joint configuration realizing the target
+        end-effector pose, then commands the arm via :meth:`move_joints`.
+        Returns ``False`` if IK fails to converge.
+        """
+        try:
+            if self.current_joint_state is not None:
+                q_init = self._joint_vector_from_state(self.current_joint_state)
+            else:
+                q_init = None
+
+            T_target = self._pose_to_matrix(target_pose)
+            q_sol, success, iters = self.kinematics.inverse_kinematics(
+                T_target, q_init=q_init
+            )
+
+            if not success:
+                self.get_logger().error(
+                    f'IK did not converge for target pose (after {iters} iters)'
+                )
+                self.status_pub.publish(String(data='IK failed'))
+                return False
+
+            self.get_logger().info(
+                f'IK solved in {iters} iters; commanding joints {q_sol.tolist()}'
+            )
+            return self.move_joints(q_sol.tolist(), self.arm_joint_names)
+
+        except Exception as e:
+            self.get_logger().error(f'Error in move_to_cartesian: {str(e)}')
+            return False
     
     def _check_movement_complete(self):
         """Check if movement is complete and update status."""

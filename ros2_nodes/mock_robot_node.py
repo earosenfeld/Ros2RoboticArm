@@ -10,6 +10,12 @@ import threading
 import time
 from datetime import datetime
 
+import numpy as np
+
+# Pure-Python kinematics (no ROS deps) so the 3D visualizer reflects the true
+# forward kinematics of the arm rather than a hardcoded marker.
+from robot_arm import RobotKinematics, load_default_chain
+
 class MockRobotNode(Node):
     """
     Mock robot node that simulates robot movements and updates the 3D visualizer.
@@ -54,8 +60,20 @@ class MockRobotNode(Node):
             10
         )
         
+        # Forward kinematics over the 6-DOF arm chain (gripper locked at zero).
+        self.kinematics = RobotKinematics(load_default_chain())
+
+        # Named joint configurations (rad), used to drive FK for the 3D viz.
+        self.named_configs = {
+            'home': np.zeros(self.kinematics.n),
+            'ready': np.array([0.0, -0.5, 0.8, 0.0, 0.6, 0.0]),
+            'inspect': np.array([0.5, -0.3, 0.6, 0.0, 0.9, 0.0]),
+            'pick': np.array([0.0, 0.7, -1.0, 0.0, 0.8, 0.0]),
+        }
+
         # Robot state
         self.current_pose = 'home'
+        self.current_joint_positions = self.named_configs['home'].copy()
         self.gripper_position = 0.0
         self.is_moving = False
         self.robot_status = 'Ready'
@@ -102,6 +120,24 @@ class MockRobotNode(Node):
         
         asyncio.run(start_server())
     
+    def _end_effector_pose(self):
+        """Compute the current end-effector pose via forward kinematics.
+
+        Returns a dict with the base-frame position (x, y, z) and the full 3x3
+        orientation, so the 3D visualizer can place the tool frame using the
+        arm's true kinematics rather than a hardcoded marker.
+        """
+        T = self.kinematics.forward_kinematics(self.current_joint_positions)
+        return {
+            'position': {
+                'x': float(T[0, 3]),
+                'y': float(T[1, 3]),
+                'z': float(T[2, 3]),
+            },
+            'orientation_matrix': T[:3, :3].tolist(),
+            'joint_positions': self.current_joint_positions.tolist(),
+        }
+
     async def _send_robot_status(self, websocket):
         """Send robot status to 3D visualizer."""
         status_data = {
@@ -110,6 +146,7 @@ class MockRobotNode(Node):
             'current_pose': self.current_pose,
             'gripper_position': self.gripper_position,
             'is_moving': self.is_moving,
+            'end_effector': self._end_effector_pose(),
             'timestamp': datetime.now().isoformat()
         }
         
@@ -129,9 +166,10 @@ class MockRobotNode(Node):
             'current_pose': self.current_pose,
             'gripper_position': self.gripper_position,
             'is_moving': self.is_moving,
+            'end_effector': self._end_effector_pose(),
             'timestamp': datetime.now().isoformat()
         }
-        
+
         # Send to all connected clients
         for client in self.websocket_clients[:]:  # Copy list to avoid modification during iteration
             try:
@@ -236,17 +274,20 @@ class MockRobotNode(Node):
         
         # Simulate movement time
         time.sleep(2.0)
-        
-        # Update pose
+
+        # Update pose and the joint configuration that drives forward kinematics.
         self.current_pose = pose_name
+        if pose_name in self.named_configs:
+            self.current_joint_positions = self.named_configs[pose_name].copy()
         self.is_moving = False
         self.robot_status = 'Ready'
         self._broadcast_status()
-        
-        # Publish status update
+
+        # Publish status update including the FK end-effector pose.
         status_data = {
             'type': 'pose_reached',
             'pose': pose_name,
+            'end_effector': self._end_effector_pose(),
             'timestamp': datetime.now().isoformat()
         }
         self.robot_status_pub.publish(String(data=json.dumps(status_data)))

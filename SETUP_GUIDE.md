@@ -1,272 +1,184 @@
-# ROS 2 Robotic Arm Inspection System - Setup Guide
+# Setup Guide
 
-This guide will help you set up and run the complete ROS 2 Robotic Arm Inspection System with Drawflow integration.
+Install and run the Robotic Arm Inspection Workcell Simulation — the web demo
+(Drawflow UI + 3D visualizer + FastAPI backend), the pure-Python kinematics
+library and its tests, and (optionally) the ROS 2 nodes.
+
+See [README.md](README.md) for what the project is and what's real vs simulated.
+
+---
 
 ## Prerequisites
 
-### System Requirements
-- Ubuntu 20.04 or later (recommended for ROS 2)
-- Python 3.8+
-- ROS 2 Humble or later
-- Intel RealSense camera (optional - system works in simulation mode)
+- **Python 3.10+** (3.10 / 3.11 / 3.12 are CI-tested)
+- **Git**
+- A modern web browser (Chrome, Firefox, Safari, Edge) for the demo
+- **Optional, ROS 2 nodes only:** Ubuntu 22.04, ROS 2 Humble, and MoveIt 2.
+  The simulation and kinematics library do **not** require ROS 2.
 
-### Required Software
-1. **ROS 2 Humble** - [Installation Guide](https://docs.ros.org/en/humble/Installation.html)
-2. **Python Dependencies** - Listed in `requirements.txt`
-3. **Gazebo** (for simulation) - Usually comes with ROS 2
-4. **RViz** (for visualization) - Usually comes with ROS 2
+---
 
-## Installation
+## 1. Clone and create a virtual environment
 
-### 1. Clone the Repository
 ```bash
 git clone <repository-url>
 cd Ros2RoboticArm
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 ```
 
-### 2. Install Python Dependencies
+> An `activate_env.sh` helper is provided that activates `.venv` and prints the
+> start commands.
+
+---
+
+## 2. Install dependencies
+
+For the **web demo + backend**:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Build the ROS 2 Workspace
+For the **kinematics library + tests** (lightweight; no FastAPI/OpenCV needed):
+
 ```bash
-# Source ROS 2 environment
-source /opt/ros/humble/setup.bash
-
-# Build the package
-colcon build
-
-# Source the workspace
-source install/setup.bash
+pip install numpy scipy pytest matplotlib
 ```
 
-### 4. Make Nodes Executable
+---
+
+## 3. Run the kinematics tests
+
+The kinematics library (`robot_arm/`) is validated by a pytest suite that
+parses `urdf/robot_arm.urdf` and checks forward kinematics, the Jacobian,
+inverse kinematics convergence, and trajectory continuity:
+
 ```bash
-chmod +x ros2_nodes/*.py
+python -m pytest tests/ -q
 ```
 
-## Running the System
+This is the same command run in CI across Python 3.10/3.11/3.12.
 
-### Option 1: Complete System (Recommended)
+To regenerate the figures embedded in the README (workspace cloud, IK Cartesian
+path, trajectory profile):
 
-#### Terminal 1: Start ROS 2 Nodes
 ```bash
-# Source ROS 2 and workspace
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# Launch the inspection system
-ros2 launch ros2_robotic_arm inspection_system.launch.py
+python scripts/make_figures.py
 ```
 
-#### Terminal 2: Start FastAPI Backend
-```bash
-# Navigate to project directory
-cd Ros2RoboticArm
+---
 
-# Start the backend
-python backend/main.py
+## 4. Run the web demo
+
+The demo is two local servers: a FastAPI backend (port 8000) and a static file
+server for the Drawflow UI (port 8080).
+
+### Automated (recommended)
+
+```bash
+./start_system.sh
 ```
 
-#### Terminal 3: Serve Drawflow UI
+This activates the virtual environment, starts both servers, and prints the
+access points. Press **Ctrl+C** to stop both.
+
+If the ports are already in use:
+
 ```bash
-# Navigate to project directory
-cd Ros2RoboticArm
-
-# Serve the UI (Python 3)
-python -m http.server 8080 --directory drawflow_ui
-
-# Or use any other web server
-# nginx, apache, etc.
+./kill_ports.sh      # frees 8000 and 8080
+./start_system.sh
 ```
 
-#### Terminal 4: Run Demo (Optional)
-```bash
-# Navigate to project directory
-cd Ros2RoboticArm
+### Manual
 
-# Run the demo script
-python demo.py
+```bash
+# Terminal 1 — backend (FastAPI)
+source .venv/bin/activate
+cd backend
+python -m uvicorn main_simple:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — frontend (static server)
+cd drawflow_ui
+python -m http.server 8080
 ```
 
-### Option 2: Individual Components
+### Access points
 
-#### Start Only ROS 2 Nodes
+| What | URL |
+|------|-----|
+| Drawflow visual-programming UI | http://localhost:8080 |
+| 3D robot visualizer | http://localhost:8080/robot_visualizer.html |
+| Backend REST API | http://localhost:8000 |
+| Interactive API docs (Swagger) | http://localhost:8000/docs |
+| Health check | http://localhost:8000/health |
+
+---
+
+## 5. Using the demo
+
+1. Open http://localhost:8080. Drag robot nodes from the left panel onto the
+   canvas: **MoveToPose**, **SetGripper**, **CaptureImage**, **RunInspection**.
+2. Connect node outputs to inputs to build an inspection workflow.
+3. Double-click a node to configure it; click **Execute Workflow** to run it.
+4. Open the 3D visualizer to watch the arm move in real time, or to drive it
+   manually with the pose buttons and gripper slider.
+
+### API examples
+
 ```bash
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# Start individual nodes
-ros2 run ros2_robotic_arm robot_controller.py &
-ros2 run ros2_robotic_arm camera_node.py &
-ros2 run ros2_robotic_arm inspection_node.py &
-```
-
-#### Start Only Backend
-```bash
-python backend/main.py
-```
-
-## Using the System
-
-### 1. Web Interface
-1. Open your browser and go to `http://localhost:8080`
-2. You'll see the Drawflow interface with robot nodes in the sidebar
-3. Drag nodes from the sidebar to the canvas
-4. Connect nodes to create inspection workflows
-5. Click "Execute" to run the workflow
-
-### 2. API Interface
-The system provides a RESTful API at `http://localhost:8000`:
-
-#### Health Check
-```bash
+# Health
 curl http://localhost:8000/health
-```
 
-#### Get Example Workflow
-```bash
+# Single command
+curl -X POST http://localhost:8000/api/execute-command \
+  -H "Content-Type: application/json" \
+  -d '{"type": "MoveToPose", "data": {"pose": "home"}}'
+
+# Example workflow payload
 curl http://localhost:8000/api/example-workflow
 ```
 
-#### Execute Workflow
+A standalone `python demo_simple.py` script exercises the API endpoints and
+WebSocket stream end-to-end (start the backend first).
+
+---
+
+## 6. (Optional) ROS 2 nodes
+
+The nodes in `ros2_nodes/` are scaffolding for a real ROS 2 + MoveIt stack and
+are **not** required for the simulation above. They need a ROS 2 workspace:
+
 ```bash
-curl -X POST http://localhost:8000/api/execute-workflow \
-  -H "Content-Type: application/json" \
-  -d @workflow.json
+# Source ROS 2 (Humble)
+source /opt/ros/humble/setup.bash
+
+# Build the package and source the workspace
+colcon build
+source install/setup.bash
+
+# Make the node scripts executable
+chmod +x ros2_nodes/*.py
 ```
 
-### 3. ROS 2 Topics
-Monitor the system using ROS 2 topics:
+The `package.xml` declares the ROS 2 dependencies (rclpy, MoveIt, RealSense,
+Gazebo, tf2, etc.). Without a ROS 2 environment these nodes will not run — see
+the "What's real vs simulated" note in the README.
 
-```bash
-# Robot status
-ros2 topic echo /robot_status
-
-# Inspection results
-ros2 topic echo /inspection_result
-
-# Camera images
-ros2 topic echo /camera/color/image_raw
-
-# Drawflow commands
-ros2 topic echo /drawflow_command
-```
-
-## Available Nodes
-
-### Drawflow Nodes
-1. **MoveToPose** - Move robot to specified position
-   - Options: home, inspection_1, inspection_2, inspection_3
-2. **SetGripper** - Control gripper position
-   - Options: 0.0 (Closed), 1.0 (Open)
-3. **CaptureImage** - Capture image from camera
-   - Options: Save image (true/false)
-4. **RunInspection** - Execute inspection routine
-   - Options: standard, detailed, quick
-
-### ROS 2 Nodes
-1. **robot_controller** - Handles robot arm control and MoveIt 2 integration
-2. **camera_node** - Manages RealSense camera and image processing
-3. **inspection_node** - Coordinates inspection routines and workflow execution
-
-## Configuration
-
-### Robot Poses
-Edit predefined poses in `ros2_nodes/inspection_node.py`:
-```python
-self.inspection_poses = {
-    'home': self._create_pose(0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0),
-    'inspection_1': self._create_pose(0.6, 0.2, 0.4, 0.0, 0.0, 0.0, 1.0),
-    # Add more poses as needed
-}
-```
-
-### Camera Settings
-Modify camera parameters in `ros2_nodes/camera_node.py`:
-```python
-self.color_width = 640
-self.color_height = 480
-self.fps = 30
-```
-
-### Inspection Areas
-Configure inspection areas in `ros2_nodes/camera_node.py`:
-```python
-self.inspection_areas = [
-    {'name': 'area_1', 'x': 100, 'y': 100, 'w': 200, 'h': 200},
-    # Add more areas as needed
-]
-```
+---
 
 ## Troubleshooting
 
-### Common Issues
+| Symptom | Fix |
+|---------|-----|
+| Port 8000/8080 already in use | `./kill_ports.sh`, then restart |
+| `venv` activation fails | use `source .venv/bin/activate` (not bare path) |
+| Backend won't start | confirm deps: `pip install -r requirements.txt` |
+| Frontend blank / 404 | run the static server from inside `drawflow_ui/` |
+| WebSocket disconnects | ensure both servers are running; the visualizer auto-reconnects |
+| Tests can't import `robot_arm` | run pytest from the repo root |
 
-#### 1. ROS 2 Nodes Not Starting
-```bash
-# Check if ROS 2 is properly sourced
-echo $ROS_DISTRO
-
-# Check if package is built
-ros2 pkg list | grep ros2_robotic_arm
-```
-
-#### 2. FastAPI Backend Not Starting
-```bash
-# Check if port 8000 is available
-netstat -tuln | grep 8000
-
-# Check Python dependencies
-pip list | grep fastapi
-```
-
-#### 3. Drawflow UI Not Loading
-```bash
-# Check if files exist
-ls -la drawflow_ui/
-
-# Check web server
-curl http://localhost:8080
-```
-
-#### 4. Camera Not Working
-- The system automatically falls back to simulation mode if RealSense camera is not available
-- Check camera permissions: `ls -la /dev/video*`
-- Install RealSense SDK if needed
-
-### Debug Mode
-Enable debug logging by setting environment variables:
-```bash
-export ROS_LOG_LEVEL=DEBUG
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-```
-
-## Development
-
-### Adding New Nodes
-1. Create new node in `ros2_nodes/`
-2. Register node in `drawflow_ui/script.js`
-3. Add node configuration in `backend/main.py`
-4. Update URDF if needed
-
-### Extending Functionality
-- Add new inspection algorithms in `camera_node.py`
-- Create new robot poses in `inspection_node.py`
-- Extend API endpoints in `backend/main.py`
-
-## API Documentation
-
-Once the backend is running, visit `http://localhost:8000/docs` for interactive API documentation.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review ROS 2 and FastAPI documentation
-3. Check the logs in each terminal for error messages 
+For deeper API exploration, the live Swagger docs are at
+http://localhost:8000/docs while the backend is running.

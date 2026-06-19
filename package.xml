@@ -3,8 +3,8 @@
 <package format="3">
   <name>ros2_robotic_arm</name>
   <version>0.1.0</version>
-  <description>ROS 2 package for robotic arm inspection system with Blockly integration</description>
-  <maintainer email="user@example.com">Your Name</maintainer>
+  <description>ROS 2 package for a robotic-arm inspection workcell simulation: a Drawflow visual-programming web UI, Three.js 3D visualization, and a FastAPI backend, backed by a pure-Python kinematics library (forward kinematics, geometric Jacobian, damped-least-squares IK, and trajectory generation) parsed from the URDF.</description>
+  <maintainer email="ericalanrosenfeld@gmail.com">Eric Rosenfeld</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
