@@ -34,9 +34,13 @@ plt.rcParams.update({
 PALETTE = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#0891b2"]
 
 from robot_arm import (  # noqa: E402
+    Box,
     cartesian_line,
     default_kinematics,
+    path_length,
     quintic_polynomial,
+    rrt_connect,
+    shortcut_path,
 )
 
 ASSETS = os.path.join(ROOT, "assets")
@@ -183,11 +187,98 @@ def figure_trajectory_profile() -> str:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Figure 4 — RRT-Connect motion planning around an obstacle
+# ---------------------------------------------------------------------------
+
+
+def _ee_curve(rk, path, per_edge: int = 10) -> np.ndarray:
+    """End-effector positions (FK) sampled densely along a joint-space path."""
+    pts = []
+    for a, b in zip(path[:-1], path[1:]):
+        for t in np.linspace(0.0, 1.0, per_edge, endpoint=False):
+            pts.append(rk.forward_kinematics(a + t * (b - a))[:3, 3])
+    pts.append(rk.forward_kinematics(path[-1])[:3, 3])
+    return np.asarray(pts)
+
+
+def _draw_box(ax, box: Box, a0: int, a1: int, label=None) -> None:
+    """Draw a Box obstacle's (a0, a1)-plane projection as a filled rectangle."""
+    lo, hi = box.lower, box.upper
+    x0, x1 = lo[a0], hi[a0]
+    y0, y1 = lo[a1], hi[a1]
+    ax.add_patch(
+        plt.Rectangle(
+            (x0, y0), x1 - x0, y1 - y0,
+            facecolor=PALETTE[1], edgecolor=PALETTE[1], alpha=0.18,
+            linewidth=1.5, label=label, zorder=1,
+        )
+    )
+
+
+def figure_motion_planning(seed: int = 7) -> str:
+    rk = default_kinematics()
+    limits = rk.chain.joint_limits()
+
+    # Start tilts the arm to +y, goal to -y; a thin wall in the y=0 plane at the
+    # outer reach blocks the straight joint interpolation, so the planner must
+    # route around it (this is the exact scenario the tests exercise).
+    q_start = np.array([0.9, 0.95, -0.6, 0.0, 0.7, 0.0])
+    q_goal = np.array([-0.9, 0.95, -0.6, 0.0, 0.7, 0.0])
+    wall = Box(center=[0.30, 0.0, 0.46], size=[0.34, 0.06, 0.50])
+
+    raw, info = rrt_connect(
+        q_start, q_goal, [wall], limits, max_iters=5000, step=0.1, seed=seed,
+    )
+    if raw is None:  # pragma: no cover - the scenario is solvable
+        raise RuntimeError(f"planner found no path: {info}")
+    short = shortcut_path(raw, [wall], iters=200, seed=seed)
+
+    ee_raw = _ee_curve(rk, raw)
+    ee_short = _ee_curve(rk, short)
+    p_start = rk.forward_kinematics(q_start)[:3, 3]
+    p_goal = rk.forward_kinematics(q_goal)[:3, 3]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.2))
+
+    for ax, (a0, a1, xl, yl, title) in zip(
+        axes,
+        [(0, 2, "X (m)", "Z (m)", "End-effector path — side view (X-Z)"),
+         (0, 1, "X (m)", "Y (m)", "End-effector path — top view (X-Y)")],
+    ):
+        _draw_box(ax, wall, a0, a1, label="obstacle")
+        ax.plot(ee_raw[:, a0], ee_raw[:, a1], color="#94a3b8",
+                linewidth=1.6, label=f"raw RRT ({path_length(raw):.1f} rad)")
+        ax.plot(ee_short[:, a0], ee_short[:, a1], color=PALETTE[0],
+                label=f"shortcutted ({path_length(short):.1f} rad)")
+        ax.scatter([p_start[a0]], [p_start[a1]], color=PALETTE[2],
+                   zorder=5, s=60, label="start")
+        ax.scatter([p_goal[a0]], [p_goal[a1]], color=PALETTE[3],
+                   zorder=5, s=60, label="goal")
+        ax.set_xlabel(xl)
+        ax.set_ylabel(yl)
+        ax.set_title(title)
+        ax.set_aspect("equal", adjustable="datalim")
+
+    axes[0].legend(loc="best", fontsize=8)
+
+    fig.suptitle(
+        "RRT-Connect: collision-free joint-space path around an obstacle "
+        "(raw vs shortcutted)",
+        fontsize=14, fontweight="bold",
+    )
+    out = os.path.join(ASSETS, "motion_planning.png")
+    fig.savefig(out)
+    plt.close(fig)
+    return out
+
+
 def main() -> None:
     outputs = [
         figure_workspace(),
         figure_ik_cartesian_path(),
         figure_trajectory_profile(),
+        figure_motion_planning(),
     ]
     for path in outputs:
         size = os.path.getsize(path)

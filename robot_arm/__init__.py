@@ -41,6 +41,17 @@ from .trajectory import (
     quintic_polynomial,
     trapezoidal_profile,
 )
+from .planning import (
+    Box,
+    Sphere,
+    in_collision,
+    link_sample_points,
+    path_length,
+    plan_to_config,
+    plan_to_pose,
+    rrt_connect,
+    shortcut_path,
+)
 
 __all__ = [
     # urdf_chain
@@ -73,4 +84,14 @@ __all__ = [
     "quintic_polynomial",
     "trapezoidal_profile",
     "cartesian_line",
+    # planning
+    "Sphere",
+    "Box",
+    "in_collision",
+    "link_sample_points",
+    "rrt_connect",
+    "shortcut_path",
+    "path_length",
+    "plan_to_config",
+    "plan_to_pose",
 ]
