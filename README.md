@@ -1,5 +1,7 @@
 # Robotic Arm Inspection Workcell Simulation
 
+[![CI](https://github.com/earosenfeld/ros2-robotic-arm/actions/workflows/ci.yml/badge.svg)](https://github.com/earosenfeld/ros2-robotic-arm/actions/workflows/ci.yml)
+
 A **simulation of a robotic-arm inspection workcell**: a browser-based
 visual-programming UI for building inspection routines, a 3D Three.js view of a
 6-DOF arm, and a FastAPI backend that executes the routines — now backed by a
@@ -144,7 +146,7 @@ python -m pytest tests/ -q
 | **Kinematics & trajectories** (`robot_arm/`) | **Real and unit-tested** — FK, Jacobian, damped-least-squares IK, quintic/trapezoidal trajectories, validated by `tests/`. |
 | **Motion planning** (`robot_arm/planning.py`) | **Real and unit-tested** — collision-aware RRT-Connect in joint space, capsule-based collision checking, and path shortcutting, validated by `tests/test_planning.py`. |
 | Visual programming UI + FastAPI backend | **Real software** — the Drawflow UI, REST/WebSocket API, and 3D viz run as shown. |
-| ROS 2 / MoveIt motion execution (`ros2_nodes/`) | **Scaffolding** — requires a ROS 2 + MoveIt install (Humble); not exercised by the demo or CI. |
+| ROS 2 / MoveIt motion execution (`ros2_nodes/`) | **Scaffolding** — requires a ROS 2 + MoveIt install (Humble); not exercised by the demo or CI. To run: source a Humble workspace, `colcon build` this package, then launch from `launch/`. |
 | Robot hardware & camera | **Mocked** — movements are simulated with timing delays; inspection results are synthetic; no physical arm or RealSense camera is driven. |
 
 ---
@@ -152,13 +154,15 @@ python -m pytest tests/ -q
 ## Project layout
 
 ```
-Ros2RoboticArm/
+ros2-robotic-arm/
 ├── robot_arm/        # Pure-Python library: kinematics (FK, IK, Jacobian), trajectories, RRT-Connect planning
 ├── tests/            # pytest suite for the kinematics + planning library
 ├── scripts/          # make_figures.py — generates the README figures
 ├── urdf/             # robot_arm.urdf — joint geometry (source of truth for kinematics)
 ├── ros2_nodes/       # ROS 2 / MoveIt node scaffolding (optional)
 ├── backend/          # FastAPI backend (REST + WebSocket)
+│                     #   main_simple.py — standalone sim backend (no ROS; used by start_system.sh)
+│                     #   main.py        — rclpy-backed variant (requires a ROS 2 Humble env)
 ├── drawflow_ui/      # Drawflow UI + Three.js 3D visualizer
 ├── assets/           # Generated figures
 ├── config/ launch/   # ROS 2 config and launch files
