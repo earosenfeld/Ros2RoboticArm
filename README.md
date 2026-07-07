@@ -115,6 +115,17 @@ under a fixed seed.
 
 ---
 
+## The workcell UI
+
+Visual-programming workbench (Drawflow) with live backend status, and the
+Three.js robot visualizer streaming joint state over WebSocket:
+
+![Drawflow workflow editor with robot node palette and live status](assets/ui_workbench.png)
+
+![Three.js 3D robot visualizer connected to the FastAPI backend](assets/robot_visualizer.png)
+
+---
+
 ## Running it
 
 Full instructions are in **[SETUP_GUIDE.md](SETUP_GUIDE.md)**. The short version:

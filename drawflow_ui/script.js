@@ -371,7 +371,7 @@ function createTestWorkflow() {
         // Connect nodes
         if (node1 && node2) {
             try {
-                editor.addConnection(node1, 'output', node2, 'input');
+                editor.addConnection(node1, node2, 'output_1', 'input_1');
                 console.log('Connected node1 to node2');
             } catch (error) {
                 console.error('Failed to connect node1 to node2:', error);
@@ -380,7 +380,7 @@ function createTestWorkflow() {
         
         if (node2 && node3) {
             try {
-                editor.addConnection(node2, 'output', node3, 'input');
+                editor.addConnection(node2, node3, 'output_1', 'input_1');
                 console.log('Connected node2 to node3');
             } catch (error) {
                 console.error('Failed to connect node2 to node3:', error);
@@ -415,7 +415,7 @@ function testConnections() {
         console.log(`Attempting to connect ${node1Id} to ${node2Id}`);
         
         try {
-            editor.addConnection(node1Id, 'output', node2Id, 'input');
+            editor.addConnection(node1Id, node2Id, 'output_1', 'input_1');
             console.log('Connection successful!');
             showToast('Connection test successful!', 'success');
         } catch (error) {
@@ -1000,7 +1000,7 @@ function createBasicTest() {
         
         // Try to connect them
         if (node1 && node2) {
-            editor.addConnection(node1, 'output', node2, 'input');
+            editor.addConnection(node1, node2, 'output_1', 'input_1');
             console.log('Test connection successful!');
             showToast('Basic test successful!', 'success');
         }
