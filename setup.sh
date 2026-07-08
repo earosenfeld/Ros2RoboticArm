@@ -38,11 +38,11 @@ pip install --upgrade pip
 
 # Install dependencies
 echo "📚 Installing Python dependencies..."
-if [ -f "requirements_simple.txt" ]; then
-    pip install -r requirements_simple.txt
+if [ -f "requirements.txt" ]; then
+    pip install -r requirements.txt
     echo "✅ Dependencies installed successfully!"
 else
-    echo "❌ requirements_simple.txt not found!"
+    echo "❌ requirements.txt not found!"
     exit 1
 fi
 

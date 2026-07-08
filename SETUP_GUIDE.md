@@ -45,7 +45,7 @@ pip install -r requirements.txt
 For the **kinematics library + tests** (lightweight; no FastAPI/OpenCV needed):
 
 ```bash
-pip install numpy scipy pytest matplotlib
+pip install numpy pytest matplotlib
 ```
 
 ---

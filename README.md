@@ -48,7 +48,7 @@ flowchart LR
 
 ## Kinematics library
 
-`robot_arm/` is a dependency-light (NumPy/SciPy) kinematics package built
+`robot_arm/` is a dependency-light (NumPy only) kinematics package built
 directly from the joint geometry in `urdf/robot_arm.urdf`:
 
 - **Forward kinematics** — joint angles to end-effector pose via the URDF link
@@ -144,7 +144,7 @@ http://localhost:8080/robot_visualizer.html (3D view).
 **Kinematics tests**:
 
 ```bash
-pip install numpy scipy pytest matplotlib
+pip install numpy pytest matplotlib
 python -m pytest tests/ -q
 ```
 
