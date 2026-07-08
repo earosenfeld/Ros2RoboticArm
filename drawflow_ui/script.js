@@ -258,7 +258,7 @@ function createNode(nodeType, x, y) {
         }
         
         // Check if this is the first node (no other nodes exist)
-        const allNodes = editor.getNodesFromName();
+        const allNodes = editor.export().drawflow[editor.module].data;
         const isFirstNode = Object.keys(allNodes).length === 0;
         
         console.log(`Creating ${nodeType} node. Is first node: ${isFirstNode}`);
