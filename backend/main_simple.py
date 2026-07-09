@@ -36,10 +36,10 @@ class SimulatedRobot:
     """Simulated robot for demonstration purposes."""
     
     def __init__(self):
-        self.current_pose = "home"
+        self.status = "Ready"
+        self.current_pose = "home"  # Use mapped pose name
         self.gripper_position = 0.0
         self.is_moving = False
-        self.status = "Ready"
         
     async def move_to_pose(self, pose: str) -> bool:
         """Simulate moving to a pose."""
@@ -47,13 +47,35 @@ class SimulatedRobot:
         self.status = f"Moving to {pose}"
         logger.info(f"🤖 Robot moving to pose: {pose}")
         
+        # Map pose name to 3D visualizer format
+        mapped_pose = POSE_MAPPING.get(pose, pose)
+        
+        # Broadcast status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": mapped_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         # Simulate movement time
         await asyncio.sleep(2)
         
-        self.current_pose = pose
+        self.current_pose = mapped_pose
         self.is_moving = False
         self.status = "Ready"
-        logger.info(f"✅ Robot reached pose: {pose}")
+        logger.info(f"✅ Robot reached pose: {mapped_pose}")
+        
+        # Broadcast final status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         return True
     
     async def set_gripper(self, position: float) -> bool:
@@ -61,12 +83,31 @@ class SimulatedRobot:
         self.status = f"Setting gripper to {position}"
         logger.info(f"🤖 Setting gripper to position: {position}")
         
+        # Broadcast status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         # Simulate gripper movement
         await asyncio.sleep(1)
         
         self.gripper_position = position
         self.status = "Ready"
         logger.info(f"✅ Gripper set to position: {position}")
+        
+        # Broadcast final status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         return True
     
     async def capture_image(self, save: bool = True) -> bool:
@@ -74,17 +115,45 @@ class SimulatedRobot:
         self.status = "Capturing image"
         logger.info(f"📸 Capturing image (save={save})")
         
+        # Broadcast status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         # Simulate camera capture time
         await asyncio.sleep(1)
         
         self.status = "Ready"
         logger.info(f"✅ Image captured successfully")
+        
+        # Broadcast final status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         return True
     
     async def run_inspection(self, inspection_type: str = "standard") -> Dict[str, Any]:
         """Simulate running inspection."""
         self.status = f"Running {inspection_type} inspection"
         logger.info(f"🔍 Running {inspection_type} inspection")
+        
+        # Broadcast status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
         
         # Simulate inspection time
         await asyncio.sleep(3)
@@ -110,10 +179,29 @@ class SimulatedRobot:
         
         self.status = "Ready"
         logger.info(f"✅ Inspection completed: {result['overall_result']}")
+        
+        # Broadcast final status update
+        await manager.broadcast(json.dumps({
+            "type": "robot_status",
+            "status": self.status,
+            "current_pose": self.current_pose,
+            "gripper_position": self.gripper_position,
+            "is_moving": self.is_moving
+        }))
+        
         return result
 
 # Create simulated robot instance
 simulated_robot = SimulatedRobot()
+
+# Pose name mapping to match 3D visualizer
+POSE_MAPPING = {
+    "home": "home",
+    "inspection": "inspection_position", 
+    "pick": "pick_position",
+    "place": "place_position",
+    "camera": "camera_position"
+}
 
 # Create FastAPI app
 app = FastAPI(
@@ -321,7 +409,7 @@ async def get_status():
         "timestamp": datetime.now().isoformat(),
         "mode": "simulation",
         "robot_status": simulated_robot.status,
-        "current_pose": simulated_robot.current_pose,
+        "current_pose": simulated_robot.current_pose,  # Already mapped
         "gripper_position": simulated_robot.gripper_position,
         "is_moving": simulated_robot.is_moving
     }
@@ -347,9 +435,9 @@ async def get_example_workflow():
                     },
                     "2": {
                         "id": 2,
-                        "name": "SetGripper",
-                        "data": {"position": "1.0 (Open)", "description": "Open gripper"},
-                        "class": "SetGripper",
+                        "name": "MoveToPose",
+                        "data": {"pose": "inspection", "description": "Move to inspection position"},
+                        "class": "MoveToPose",
                         "html": "",
                         "typenode": False,
                         "inputs": {"input": {"connections": [{"node": "1", "output": "output"}]}},
@@ -359,9 +447,9 @@ async def get_example_workflow():
                     },
                     "3": {
                         "id": 3,
-                        "name": "CaptureImage",
-                        "data": {"save": True, "description": "Capture image"},
-                        "class": "CaptureImage",
+                        "name": "SetGripper",
+                        "data": {"position": "1.0 (Open)", "description": "Open gripper"},
+                        "class": "SetGripper",
                         "html": "",
                         "typenode": False,
                         "inputs": {"input": {"connections": [{"node": "2", "output": "output"}]}},
@@ -371,14 +459,26 @@ async def get_example_workflow():
                     },
                     "4": {
                         "id": 4,
+                        "name": "CaptureImage",
+                        "data": {"save": True, "description": "Capture image"},
+                        "class": "CaptureImage",
+                        "html": "",
+                        "typenode": False,
+                        "inputs": {"input": {"connections": [{"node": "3", "output": "output"}]}},
+                        "outputs": {"output": {"connections": [{"node": "5", "input": "input"}]}},
+                        "pos_x": 700,
+                        "pos_y": 100
+                    },
+                    "5": {
+                        "id": 5,
                         "name": "RunInspection",
                         "data": {"type": "standard", "description": "Run inspection"},
                         "class": "RunInspection",
                         "html": "",
                         "typenode": False,
-                        "inputs": {"input": {"connections": [{"node": "3", "output": "output"}]}},
+                        "inputs": {"input": {"connections": [{"node": "4", "output": "output"}]}},
                         "outputs": {},
-                        "pos_x": 700,
+                        "pos_x": 900,
                         "pos_y": 100
                     }
                 }
@@ -397,7 +497,7 @@ async def websocket_status(websocket: WebSocket):
             status_data = {
                 "type": "robot_status",
                 "status": simulated_robot.status,
-                "current_pose": simulated_robot.current_pose,
+                "current_pose": simulated_robot.current_pose,  # Already mapped in move_to_pose
                 "gripper_position": simulated_robot.gripper_position,
                 "is_moving": simulated_robot.is_moving
             }

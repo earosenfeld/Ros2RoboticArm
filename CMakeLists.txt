@@ -20,7 +20,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
 # Install Python modules
-ament_python_install_package(${PROJECT_NAME})
+ament_python_install_package(ros2_nodes)
 
 # Install Python executables
 install(PROGRAMS
